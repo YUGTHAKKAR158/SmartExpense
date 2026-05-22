@@ -1,17 +1,51 @@
-# Dependencies — never commit node_modules (it's 100MB+)
+# ═══════════════════════════════════════════════
+# DEPENDENCIES — never commit (100MB+)
+# ═══════════════════════════════════════════════
 node_modules/
-
-# Environment secrets — NEVER commit this file
-.env
-
-# OS files
-.DS_Store
-Thumbs.db
-
-# Logs
-*.log
 npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
-# Build artifacts
+# ═══════════════════════════════════════════════
+# ENVIRONMENT — NEVER commit this
+# Contains passwords, secrets, API keys
+# ═══════════════════════════════════════════════
+.env
+.env.local
+.env.development
+.env.production
+.env.test
+
+# ═══════════════════════════════════════════════
+# LOGS
+# ═══════════════════════════════════════════════
+logs/
+*.log
+
+# ═══════════════════════════════════════════════
+# OS FILES
+# ═══════════════════════════════════════════════
+.DS_Store
+.DS_Store?
+Thumbs.db
+desktop.ini
+
+# ═══════════════════════════════════════════════
+# EDITOR FILES
+# ═══════════════════════════════════════════════
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ═══════════════════════════════════════════════
+# BUILD
+# ═══════════════════════════════════════════════
 dist/
 build/
+
+# ═══════════════════════════════════════════════
+# MISC
+# ═══════════════════════════════════════════════
+coverage/
+.nyc_output/
