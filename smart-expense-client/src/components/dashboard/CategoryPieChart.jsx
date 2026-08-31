@@ -1,49 +1,29 @@
-// ═══════════════════════════════════════════════
-// src/components/dashboard/CategoryPieChart.jsx
-// Recharts pie chart showing spending by category
-// ═══════════════════════════════════════════════
-
+import { Doughnut } from 'react-chartjs-2';
 import {
-  PieChart, Pie, Cell, Tooltip,
-  Legend, ResponsiveContainer,
-} from 'recharts';
+  Chart as ChartJS,
+  ArcElement,
+  Tooltip,
+  Legend,
+} from 'chart.js';
 import { CATEGORY_COLORS, CATEGORY_ICONS } from '../../utils/constants';
 import { formatCurrency } from '../../utils/formatters';
 
-// Custom tooltip that shows when hovering a slice
-const CustomTooltip = ({ active, payload }) => {
-  if (active && payload && payload.length) {
-    const item = payload[0].payload;
-    return (
-      <div className="bg-white shadow-lg rounded-lg p-3 border border-gray-100">
-        <p className="font-semibold text-gray-800 text-sm">
-          {CATEGORY_ICONS[item.category]} {item.category}
-        </p>
-        <p className="text-primary-600 font-bold text-sm mt-1">
-          {formatCurrency(item.totalAmount)}
-        </p>
-        <p className="text-gray-400 text-xs">{item.count} transactions</p>
-      </div>
-    );
-  }
-  return null;
-};
+ChartJS.register(ArcElement, Tooltip, Legend);
 
-// Custom legend item
-const CustomLegend = ({ payload }) => {
-  return (
-    <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 mt-2">
-      {payload.map((entry) => (
-        <div key={entry.value} className="flex items-center gap-1">
-          <div
-            className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-            style={{ backgroundColor: entry.color }}
-          />
-          <span className="text-xs text-gray-600">{entry.value}</span>
-        </div>
-      ))}
-    </div>
-  );
+// Black shadow under each arc for depth
+const shadowPlugin = {
+  id: 'arcShadow',
+  beforeDraw(chart) {
+    const ctx = chart.ctx;
+    ctx.save();
+    ctx.shadowColor   = 'rgba(0,0,0,0.35)'; // black shadow
+    ctx.shadowBlur    = 16;
+    ctx.shadowOffsetX = 3;
+    ctx.shadowOffsetY = 6;
+  },
+  afterDraw(chart) {
+    chart.ctx.restore();
+  },
 };
 
 const CategoryPieChart = ({ data }) => {
@@ -58,35 +38,106 @@ const CategoryPieChart = ({ data }) => {
     );
   }
 
-  return (
-    <ResponsiveContainer width="100%" height={300}>
-      <PieChart>
-        <Pie
-          data={data}
-          cx="50%"
-          cy="45%"
-          // outerRadius controls pie size
-          outerRadius={100}
-          // innerRadius makes it a donut chart — easier to read
-          innerRadius={55}
-          dataKey="totalAmount"
-          nameKey="category"
-          paddingAngle={2}
-        >
-          {data.map((entry) => (
-            <Cell
-              key={entry.category}
-              fill={CATEGORY_COLORS[entry.category] || '#6b7280'}
-              stroke="white"
-              strokeWidth={2}
-            />
-          ))}
-        </Pie>
+  const total = data.reduce((sum, d) => sum + d.totalAmount, 0);
 
-        <Tooltip content={<CustomTooltip />} />
-        <Legend content={<CustomLegend />} />
-      </PieChart>
-    </ResponsiveContainer>
+  const chartData = {
+    labels: data.map((d) => d.category),
+    datasets: [
+      {
+        data: data.map((d) => d.totalAmount),
+        backgroundColor: data.map(
+          (d) => CATEGORY_COLORS[d.category] || '#6b7280'
+        ),
+        // NO white border — removed completely
+        borderColor:     'transparent',
+        borderWidth:     0,
+        hoverOffset:     14,
+        hoverBorderWidth: 0,
+        hoverBorderColor: 'transparent',
+        offset: data.map((_, i) => (i % 2 === 0 ? 4 : 2)),
+      },
+    ],
+  };
+
+  const options = {
+    responsive: true,
+    maintainAspectRatio: false,
+    cutout: '58%',
+    rotation: -90,
+    plugins: {
+      // ── ORIGINAL LEGEND FORMAT (from Recharts version) ──
+      legend: {
+        position: 'bottom',
+        labels: {
+          padding: 14,
+          usePointStyle: true,
+          pointStyle: 'circle',
+          font: { size: 11, family: 'Inter, sans-serif' },
+          color: '#64748b',
+          // Simple label: just category name with dot color
+          generateLabels: (chart) =>
+            chart.data.labels.map((label, i) => ({
+              text: `${CATEGORY_ICONS[label] || '📦'} ${label}`,
+              fillStyle: chartData.datasets[0].backgroundColor[i],
+              strokeStyle: 'transparent',
+              lineWidth: 0,
+              hidden: false,
+              index: i,
+            })),
+        },
+      },
+      tooltip: {
+        enabled: true,
+        position: 'average',   // makes tooltip appear closer to hovered slice
+        xAlign: 'right',        // pushes tooltip away from center
+        yAlign: 'center',
+        callbacks: {
+          label: (ctx) => {
+            const item = data[ctx.dataIndex];
+            const pct  = total > 0
+              ? ((item.totalAmount / total) * 100).toFixed(1)
+              : 0;
+            return [
+              ` ${formatCurrency(item.totalAmount)}`,
+              ` ${pct}% of total`,
+              ` ${item.count} transaction${item.count !== 1 ? 's' : ''}`,
+            ];
+          },
+          title: (ctx) => {
+            const label = ctx[0].label;
+            return `${CATEGORY_ICONS[label] || '📦'}  ${label}`;
+          },
+        },
+        backgroundColor: 'rgba(15,23,42,0.92)',
+        titleColor:      '#f8fafc',
+        bodyColor:       '#cbd5e1',
+        padding:         12,
+        cornerRadius:    10,
+        titleFont:       { size: 12, weight: 'bold' },
+        bodyFont:        { size: 11 },
+        displayColors:   false,
+      },
+    },
+    animation: {
+      animateRotate: true,
+      animateScale:  true,
+      duration:      900,
+      easing:        'easeInOutQuart',
+    },
+  };
+
+  return (
+    <div className="relative">
+      
+
+      <div style={{ height: 300 }}>
+        <Doughnut
+          data={chartData}
+          options={options}
+          plugins={[shadowPlugin]}
+        />
+      </div>
+    </div>
   );
 };
 

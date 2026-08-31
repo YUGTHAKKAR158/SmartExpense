@@ -133,6 +133,14 @@ app.use('/api', inviteRoutes);
 const publicRoutes = require('./src/routes/publicRoutes');
 app.use('/api', publicRoutes);
 
+// Report routes
+const reportRoutes = require('./src/routes/reportRoutes');
+app.use('/api/reports', reportRoutes);
+
+// Receipt OCR routes
+const receiptRoutes = require('./src/routes/receiptRoutes');
+app.use('/api/receipts', receiptRoutes);
+
 // ───────────────────────────────────────────────
 // 404 HANDLER — catches any unmatched routes
 // Must come AFTER all route definitions

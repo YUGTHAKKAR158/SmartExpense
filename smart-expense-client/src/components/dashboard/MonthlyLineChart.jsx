@@ -1,47 +1,41 @@
 // ═══════════════════════════════════════════════
-// src/components/dashboard/MonthlyLineChart.jsx
-// 6-month spending trend line chart
+// 3D-style Line Chart using Chart.js
+// Area fill with gradient + glowing line
 // ═══════════════════════════════════════════════
 
+import { Line } from 'react-chartjs-2';
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer, Dot,
-} from 'recharts';
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Filler,
+  Legend,
+} from 'chart.js';
 import { formatCurrency } from '../../utils/formatters';
 
-const CustomTooltip = ({ active, payload, label }) => {
-  if (active && payload && payload.length) {
-    return (
-      <div className="bg-white shadow-lg rounded-lg p-3 border border-gray-100">
-        <p className="text-gray-500 text-xs mb-1">{label}</p>
-        <p className="font-bold text-gray-900 text-sm">
-          {formatCurrency(payload[0].value)}
-        </p>
-        {payload[0].payload.count > 0 && (
-          <p className="text-gray-400 text-xs">
-            {payload[0].payload.count} transactions
-          </p>
-        )}
-      </div>
-    );
-  }
-  return null;
-};
+ChartJS.register(
+  CategoryScale, LinearScale, PointElement,
+  LineElement, Title, Tooltip, Filler, Legend
+);
 
-// Custom dot — makes the current month's dot bigger
-const CustomDot = (props) => {
-  const { cx, cy, index, data } = props;
-  const isLast = index === data.length - 1;
-  return (
-    <Dot
-      cx={cx}
-      cy={cy}
-      r={isLast ? 6 : 4}
-      fill={isLast ? '#2563eb' : '#93c5fd'}
-      stroke="white"
-      strokeWidth={2}
-    />
-  );
+// Plugin: glowing line effect
+const glowPlugin = {
+  id: 'lineGlow',
+  beforeDatasetsDraw(chart) {
+    const ctx = chart.ctx;
+    ctx.save();
+    ctx.shadowColor  = 'rgba(37,99,235,0.6)';
+    ctx.shadowBlur   = 12;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 4;
+  },
+  afterDatasetsDraw(chart) {
+    chart.ctx.restore();
+  },
 };
 
 const MonthlyLineChart = ({ data }) => {
@@ -56,47 +50,141 @@ const MonthlyLineChart = ({ data }) => {
     );
   }
 
+  // Gradient area fill — built inside plugin
+  const gradientPlugin = {
+    id: 'areaGradient',
+    beforeDatasetsDraw(chart) {
+      const { ctx, chartArea } = chart;
+      if (!chartArea) return;
+
+      const gradient = ctx.createLinearGradient(
+        0, chartArea.top, 0, chartArea.bottom
+      );
+      gradient.addColorStop(0,   'rgba(37,99,235,0.35)');
+      gradient.addColorStop(0.5, 'rgba(37,99,235,0.12)');
+      gradient.addColorStop(1,   'rgba(37,99,235,0.01)');
+
+      chart.data.datasets[0].backgroundColor = gradient;
+    },
+  };
+
+  const chartData = {
+    labels: data.map((d) => d.shortLabel),
+    datasets: [
+      {
+        label:           'Spending',
+        data:            data.map((d) => d.amount),
+        fill:            true,
+        backgroundColor: 'rgba(37,99,235,0.2)', // overridden by plugin
+        borderColor:     '#2563eb',
+        borderWidth:     2.5,
+        tension:         0.45, // smooth curves
+        pointRadius:     data.map((_, i) =>
+          i === data.length - 1 ? 8 : 5
+        ),
+        pointBackgroundColor: data.map((_, i) =>
+          i === data.length - 1 ? '#2563eb' : '#60a5fa'
+        ),
+        pointBorderColor: '#ffffff',
+        pointBorderWidth: 2.5,
+        pointHoverRadius: 10,
+        pointHoverBackgroundColor: '#1d4ed8',
+        pointHoverBorderColor:     '#ffffff',
+        pointHoverBorderWidth:     3,
+      },
+    ],
+  };
+
+  const options = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        callbacks: {
+          title: (ctx) => data[ctx[0].dataIndex]?.label || ctx[0].label,
+          label: (ctx) => ` ${formatCurrency(ctx.raw)}`,
+          afterLabel: (ctx) => {
+            const count = data[ctx.dataIndex]?.count;
+            return count ? ` ${count} transactions` : '';
+          },
+        },
+        backgroundColor: 'rgba(15,23,42,0.92)',
+        titleColor:      '#f8fafc',
+        bodyColor:       '#93c5fd',
+        padding:         12,
+        cornerRadius:    10,
+        displayColors:   false,
+        titleFont:       { size: 12, weight: 'bold' },
+        bodyFont:        { size: 13, weight: 'bold' },
+      },
+    },
+    scales: {
+      x: {
+        grid:   { display: false },
+        border: { display: false },
+        ticks:  { color: '#9ca3af', font: { size: 11 } },
+      },
+      y: {
+        grid: {
+          color:     'rgba(226,232,240,0.6)',
+          lineWidth: 1,
+        },
+        border: { display: false },
+        ticks: {
+          color: '#9ca3af',
+          font:  { size: 10 },
+          callback: (v) =>
+            v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v,
+        },
+        beginAtZero: true,
+      },
+    },
+    interaction: {
+      mode:      'index',
+      intersect: false,
+    },
+    animation: {
+      duration: 1500,
+      easing: 'easeInOutQuart',
+    },
+    animations: {
+      x: {
+        type: 'number',
+        easing: 'easeInOutQuart',
+        duration: 1500,
+        from: NaN, // means "start from first point"
+        delay(ctx) {
+          if (ctx.type !== 'data' || ctx.xStarted) return 0;
+          ctx.xStarted = true;
+          return ctx.index * 80; // stagger each point left to right
+        },
+      },
+      y: {
+        type: 'number',
+        easing: 'easeInOutQuart',
+        duration: 1500,
+        from: (ctx) => {
+          if (ctx.index === 0) return ctx.chart.scales.y.getPixelForValue(100);
+          return ctx.chart.getDatasetMeta(ctx.datasetIndex).data[ctx.index - 1].getProps(['y'], true).y;
+        },
+        delay(ctx) {
+          if (ctx.type !== 'data' || ctx.yStarted) return 0;
+          ctx.yStarted = true;
+          return ctx.index * 80;
+        },
+      },
+    },
+  };
+
   return (
-    <ResponsiveContainer width="100%" height={250}>
-      <LineChart
-        data={data}
-        margin={{ top: 10, right: 10, left: 0, bottom: 5 }}
-      >
-        <CartesianGrid
-          strokeDasharray="3 3"
-          vertical={false}
-          stroke="#f0f0f0"
-        />
-
-        <XAxis
-          dataKey="shortLabel"
-          tick={{ fontSize: 12, fill: '#9ca3af' }}
-          axisLine={false}
-          tickLine={false}
-        />
-
-        <YAxis
-          tick={{ fontSize: 11, fill: '#9ca3af' }}
-          tickFormatter={(value) =>
-            value >= 1000 ? `${(value / 1000).toFixed(0)}k` : value
-          }
-          axisLine={false}
-          tickLine={false}
-          width={40}
-        />
-
-        <Tooltip content={<CustomTooltip />} />
-
-        <Line
-          type="monotone"
-          dataKey="amount"
-          stroke="#2563eb"
-          strokeWidth={2.5}
-          dot={<CustomDot data={data} />}
-          activeDot={{ r: 7, fill: '#2563eb', stroke: 'white', strokeWidth: 2 }}
-        />
-      </LineChart>
-    </ResponsiveContainer>
+    <div style={{ height: 250 }}>
+      <Line
+        data={chartData}
+        options={options}
+        plugins={[gradientPlugin, glowPlugin]}
+      />
+    </div>
   );
 };
 

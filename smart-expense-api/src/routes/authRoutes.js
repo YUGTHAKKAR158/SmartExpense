@@ -9,7 +9,7 @@
 const express = require('express');
 const router = express.Router();
 
-const { registerUser, loginUser, getMe } = require('../controllers/authController');
+const { registerUser, loginUser, getMe, updateProfile } = require('../controllers/authController');
 const { protect } = require('../middleware/authMiddleware');
 const { validateRegister, validateLogin } = require('../middleware/validators');
 
@@ -27,5 +27,9 @@ router.post('/login', validateLogin, loginUser);
 // If JWT is invalid, protect throws an error before
 // getMe ever runs
 router.get('/me', protect, getMe);
+
+// PATCH /api/auth/profile
+// Protected — update name, currency, or password
+router.patch('/profile', protect, updateProfile);
 
 module.exports = router;

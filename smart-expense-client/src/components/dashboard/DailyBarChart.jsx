@@ -1,27 +1,36 @@
 // ═══════════════════════════════════════════════
-// src/components/dashboard/DailyBarChart.jsx
-// Daily spending bar chart for current month
+// 3D-style Bar Chart using Chart.js
+// Gradient fill + shadow gives depth effect
 // ═══════════════════════════════════════════════
 
+import { Bar } from 'react-chartjs-2';
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer, Cell,
-} from 'recharts';
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend,
+} from 'chart.js';
 import { formatCurrency } from '../../utils/formatters';
 
-// Custom tooltip
-const CustomTooltip = ({ active, payload, label }) => {
-  if (active && payload && payload.length) {
-    return (
-      <div className="bg-white shadow-lg rounded-lg p-3 border border-gray-100">
-        <p className="text-gray-500 text-xs mb-1">Day {label}</p>
-        <p className="font-bold text-gray-900 text-sm">
-          {formatCurrency(payload[0].value)}
-        </p>
-      </div>
-    );
-  }
-  return null;
+ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
+
+// Plugin: draws a shadow beneath each bar for 3D depth
+const barShadowPlugin = {
+  id: 'barShadow',
+  beforeDatasetsDraw(chart) {
+    const ctx = chart.ctx;
+    ctx.save();
+    ctx.shadowColor   = 'rgba(37,99,235,0.25)';
+    ctx.shadowBlur    = 10;
+    ctx.shadowOffsetX = 3;
+    ctx.shadowOffsetY = 6;
+  },
+  afterDatasetsDraw(chart) {
+    chart.ctx.restore();
+  },
 };
 
 const DailyBarChart = ({ data }) => {
@@ -36,59 +45,114 @@ const DailyBarChart = ({ data }) => {
     );
   }
 
-  // Find the highest spending day to highlight it
   const maxAmount = Math.max(...data.map((d) => d.amount));
 
+  // Gradient fill — created inside a plugin so canvas is available
+  const gradientPlugin = {
+    id: 'gradientFill',
+    beforeDatasetsDraw(chart) {
+      const { ctx, chartArea, scales } = chart;
+      if (!chartArea) return;
+
+      const dataset    = chart.data.datasets[0];
+      const gradient   = ctx.createLinearGradient(
+        0, chartArea.top, 0, chartArea.bottom
+      );
+      gradient.addColorStop(0,   'rgba(37,99,235,0.95)');  // top — deep blue
+      gradient.addColorStop(0.5, 'rgba(59,130,246,0.80)'); // mid
+      gradient.addColorStop(1,   'rgba(147,197,253,0.50)'); // bottom — light
+
+      // Highlight max bar in a different gradient
+      dataset.backgroundColor = data.map((d) =>
+        d.amount === maxAmount && maxAmount > 0
+          ? (() => {
+              const g = ctx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
+              g.addColorStop(0,   'rgba(234,88,12,0.95)');
+              g.addColorStop(1,   'rgba(251,146,60,0.60)');
+              return g;
+            })()
+          : gradient
+      );
+    },
+  };
+
+  const chartData = {
+    labels: data.map((d) => d.label),
+    datasets: [
+      {
+        label: 'Spent',
+        data:  data.map((d) => d.amount),
+        backgroundColor: 'rgba(37,99,235,0.85)', // overridden by plugin
+        borderColor:     'transparent',
+        borderWidth:     0,
+        borderRadius:    { topLeft: 6, topRight: 6 },
+        borderSkipped:   false,
+        barPercentage:   0.7,
+        categoryPercentage: 0.8,
+      },
+    ],
+  };
+
+  const options = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        callbacks: {
+          title: (ctx) => `Day ${ctx[0].label}`,
+          label: (ctx) => ` ${formatCurrency(ctx.raw)}`,
+        },
+        backgroundColor: 'rgba(15,23,42,0.92)',
+        titleColor:      '#f8fafc',
+        bodyColor:       '#93c5fd',
+        padding:         12,
+        cornerRadius:    10,
+        displayColors:   false,
+        titleFont:       { size: 12, weight: 'bold' },
+        bodyFont:        { size: 13, weight: 'bold' },
+      },
+    },
+    scales: {
+      x: {
+        grid:  { display: false },
+        border: { display: false },
+        ticks: {
+          color:     '#9ca3af',
+          font:      { size: 10 },
+          maxTicksLimit: 15,
+        },
+      },
+      y: {
+        grid: {
+          color:     'rgba(226,232,240,0.6)',
+          lineWidth: 1,
+        },
+        border: { display: false, dash: [4, 4] },
+        ticks: {
+          color: '#9ca3af',
+          font:  { size: 10 },
+          callback: (v) =>
+            v >= 1000 ? `${(v / 1000).toFixed(1)}k` : v,
+        },
+        beginAtZero: true,
+      },
+    },
+    animation: {
+      duration: 800,
+      easing:   'easeInOutQuart',
+      delay:    (ctx) => ctx.dataIndex * 20, // staggered bars
+    },
+  };
+
   return (
-    <ResponsiveContainer width="100%" height={250}>
-      <BarChart
-        data={data}
-        margin={{ top: 5, right: 5, left: 0, bottom: 5 }}
-        barSize={data.length > 20 ? 8 : 14}
-      >
-        <CartesianGrid
-          strokeDasharray="3 3"
-          vertical={false}
-          stroke="#f0f0f0"
-        />
-
-        <XAxis
-          dataKey="label"
-          tick={{ fontSize: 11, fill: '#9ca3af' }}
-          // Show fewer labels if many days
-          interval={data.length > 20 ? 4 : 1}
-          axisLine={false}
-          tickLine={false}
-        />
-
-        <YAxis
-          tick={{ fontSize: 11, fill: '#9ca3af' }}
-          // Format Y axis as compact numbers: 1000 → 1k
-          tickFormatter={(value) =>
-            value >= 1000 ? `${(value / 1000).toFixed(1)}k` : value
-          }
-          axisLine={false}
-          tickLine={false}
-          width={40}
-        />
-
-        <Tooltip content={<CustomTooltip />} cursor={{ fill: '#f3f4f6' }} />
-
-        <Bar dataKey="amount" radius={[4, 4, 0, 0]}>
-          {data.map((entry) => (
-            <Cell
-              key={entry.day}
-              // Highlight highest day in primary blue
-              // All others in lighter blue
-              fill={entry.amount === maxAmount && maxAmount > 0
-                ? '#2563eb'
-                : '#93c5fd'
-              }
-            />
-          ))}
-        </Bar>
-      </BarChart>
-    </ResponsiveContainer>
+    <div style={{ height: 250 }}>
+      <Bar
+        data={chartData}
+        options={options}
+        plugins={[gradientPlugin, barShadowPlugin]}
+      />
+    </div>
   );
 };
 

@@ -33,6 +33,8 @@ import PublicGroupPage from './pages/PublicGroupPage';
 
 import { InviteProvider } from './context/InviteContext';
 
+import ReportsPage from './pages/ReportsPage';
+
 // Placeholder for pages we build in later phases
 const PlaceholderPage = ({ title }) => (
   <div className="card">
@@ -101,7 +103,7 @@ const App = () => {
             <Route path="invites" element={<MyInvitesPage />} />
 
             {/* Phase 12 — placeholder */}
-            <Route path="reports" element={<PlaceholderPage title="📄 Monthly Reports" />} />
+            <Route path="reports" element={<ReportsPage />} />
           </Route>
 
           {/* Catch all — redirect unknown URLs to dashboard */}

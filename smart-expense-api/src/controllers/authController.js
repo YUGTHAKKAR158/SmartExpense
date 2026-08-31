@@ -10,6 +10,8 @@
 // ═══════════════════════════════════════════════
 
 const authService = require('../services/authService');
+const User = require('../models/User');
+const { AppError } = require('../middleware/errorHandler');
 const { sendSuccess } = require('../utils/response');
 
 // ───────────────────────────────────────────────
@@ -62,4 +64,49 @@ const getMe = async (req, res, next) => {
   }
 };
 
-module.exports = { registerUser, loginUser, getMe };
+// ───────────────────────────────────────────────
+// PATCH /api/auth/profile
+// Protected — update name, currency, or password
+// ───────────────────────────────────────────────
+const updateProfile = async (req, res, next) => {
+  try {
+    const { name, currency, currentPassword, newPassword } = req.body;
+
+    const user = await User.findById(req.user.id).select('+password');
+    if (!user) throw new AppError('User not found', 404);
+
+    if (name && name.trim().length >= 2) {
+      user.name = name.trim();
+    }
+
+    const ALLOWED_CURRENCIES = ['INR', 'USD', 'EUR', 'GBP'];
+    if (currency && ALLOWED_CURRENCIES.includes(currency)) {
+      user.currency = currency;
+    }
+
+    if (newPassword) {
+      if (user.authProvider !== 'local') {
+        throw new AppError('SSO accounts cannot change password here', 400);
+      }
+      if (!currentPassword) {
+        throw new AppError('Current password is required to set a new one', 400);
+      }
+      const isMatch = await user.comparePassword(currentPassword);
+      if (!isMatch) throw new AppError('Current password is incorrect', 401);
+      if (newPassword.length < 6) {
+        throw new AppError('New password must be at least 6 characters', 400);
+      }
+      user.password = newPassword;
+    }
+
+    await user.save();
+
+    // Re-fetch without password field for the response
+    const updated = await User.findById(req.user.id);
+    sendSuccess(res, { user: updated }, 'Profile updated successfully');
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports = { registerUser, loginUser, getMe, updateProfile };

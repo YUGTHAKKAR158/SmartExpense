@@ -100,7 +100,7 @@ const expenseSchema = new mongoose.Schema(
     // ─────────────────────────────────────────
     source: {
       type: String,
-      enum: ['manual', 'upi_auto'],
+      enum: ['manual', 'upi_auto', 'receipt_scan'],
       default: 'manual',
     },
 
